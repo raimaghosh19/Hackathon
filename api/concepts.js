@@ -52,6 +52,8 @@ const conceptSchema = {
   required: ['concepts'],
 }
 
+const OPENAI_TIMEOUT_MS = 25_000
+
 export default async function handler(request, response) {
   if (request.method !== 'POST') {
     response.setHeader('Allow', 'POST')
@@ -63,6 +65,9 @@ export default async function handler(request, response) {
     return response.status(400).json({ error: 'Course notes are required.' })
   }
 
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS)
+
   try {
     const openaiResponse = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
@@ -70,6 +75,7 @@ export default async function handler(request, response) {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
       },
+      signal: controller.signal,
       body: JSON.stringify({
         model: 'gpt-5.6',
         instructions: SYSTEM_PROMPT,
@@ -85,13 +91,28 @@ export default async function handler(request, response) {
       }),
     })
 
-    const payload = await openaiResponse.json()
+    const responseBody = await openaiResponse.text()
     if (!openaiResponse.ok) {
+      console.error('OpenAI Responses API request failed', {
+        status: openaiResponse.status,
+        statusText: openaiResponse.statusText,
+        requestId: openaiResponse.headers.get('x-request-id'),
+        body: responseBody,
+      })
+
+      let payload = null
+      try {
+        payload = JSON.parse(responseBody)
+      } catch {
+        // Keep the original response body in the server logs for investigation.
+      }
+
       return response.status(openaiResponse.status).json({
-        error: payload.error?.message || 'OpenAI could not extract concepts.',
+        error: payload?.error?.message || 'OpenAI could not extract concepts.',
       })
     }
 
+    const payload = JSON.parse(responseBody)
     const { concepts } = JSON.parse(payload.output_text)
     if (!Array.isArray(concepts)) throw new Error('The response did not include a concepts array.')
 
@@ -99,6 +120,19 @@ export default async function handler(request, response) {
       concepts: concepts.map(({ summary, ...concept }) => ({ ...concept, description: summary })),
     })
   } catch (error) {
+    if (error.name === 'AbortError') {
+      console.error(`OpenAI Responses API request timed out after ${OPENAI_TIMEOUT_MS}ms`)
+      return response.status(504).json({
+        error: 'Concept extraction took too long. Please try shorter notes or try again.',
+      })
+    }
+
+    console.error('Concept extraction failed unexpectedly', {
+      message: error.message,
+      stack: error.stack,
+    })
     return response.status(500).json({ error: error.message || 'Unable to extract concepts.' })
+  } finally {
+    clearTimeout(timeout)
   }
 }
