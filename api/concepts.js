@@ -113,7 +113,18 @@ export default async function handler(request, response) {
     }
 
     const payload = JSON.parse(responseBody)
-    const { concepts } = JSON.parse(payload.output_text)
+    const message = payload.output?.find((item) => item.type === 'message')
+    const outputText = message?.content?.find((item) => item.type === 'output_text')
+    const refusal = message?.content?.find((item) => item.type === 'refusal')
+
+    if (refusal) {
+      throw new Error(`OpenAI refused this request: ${refusal.refusal}`)
+    }
+    if (!outputText?.text) {
+      throw new Error('OpenAI returned no output_text content in its response.')
+    }
+
+    const { concepts } = JSON.parse(outputText.text)
     if (!Array.isArray(concepts)) throw new Error('The response did not include a concepts array.')
 
     return response.status(200).json({
