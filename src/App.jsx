@@ -503,12 +503,6 @@ function App() {
           <header className="slide-header">
             <p className="slide-progress">Concept {currentConceptIndex + 1} of {concepts.length}</p>
             <div className="progress-track" aria-hidden="true"><span style={{ width: `${progress}%` }} /></div>
-          </header>
-
-          <article className="slide-content">
-            <p className="eyebrow">Today&apos;s idea</p>
-            <h1 id="concept-title">{currentConcept.title}</h1>
-            <p className="concept-explanation">{displayedExplanation}</p>
             <div className="narration-tools narration-panel">
               <span className="tool-label">Listen</span>
               <div className="voice-picker" aria-label="Narration voice">
@@ -521,6 +515,12 @@ function App() {
                 <button type="button" className="secondary-button" onClick={handlePlay} disabled={playbackState === 'loading'}>{playbackState === 'loading' ? 'Preparing narration…' : 'Play'}</button>
               )}
             </div>
+          </header>
+
+          <article className="slide-content">
+            <p className="eyebrow">Today&apos;s idea</p>
+            <h1 id="concept-title">{currentConcept.title}</h1>
+            <p className="concept-explanation">{displayedExplanation}</p>
             {isDetailLoading && <p className="detail-loading" role="status">Preparing the teaching explanation…</p>}
             {currentConcept.depends_on?.length > 0 && <p className="dependencies">Builds on: {currentConcept.depends_on.join(', ')}</p>}
           </article>
