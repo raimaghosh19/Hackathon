@@ -509,6 +509,18 @@ function App() {
             <p className="eyebrow">Today&apos;s idea</p>
             <h1 id="concept-title">{currentConcept.title}</h1>
             <p className="concept-explanation">{displayedExplanation}</p>
+            <div className="narration-tools narration-panel">
+              <span className="tool-label">Listen</span>
+              <div className="voice-picker" aria-label="Narration voice">
+                <button type="button" className={voice === 'feminine' ? 'selected' : ''} onClick={() => setVoice('feminine')} aria-pressed={voice === 'feminine'} disabled={playbackState === 'playing' || playbackState === 'loading'}>Feminine voice</button>
+                <button type="button" className={voice === 'masculine' ? 'selected' : ''} onClick={() => setVoice('masculine')} aria-pressed={voice === 'masculine'} disabled={playbackState === 'playing' || playbackState === 'loading'}>Masculine voice</button>
+              </div>
+              {playbackState === 'playing' ? (
+                <button type="button" className="secondary-button" onClick={handlePause}>Pause</button>
+              ) : (
+                <button type="button" className="secondary-button" onClick={handlePlay} disabled={playbackState === 'loading'}>{playbackState === 'loading' ? 'Preparing narration…' : 'Play'}</button>
+              )}
+            </div>
             {isDetailLoading && <p className="detail-loading" role="status">Preparing the teaching explanation…</p>}
             {currentConcept.depends_on?.length > 0 && <p className="dependencies">Builds on: {currentConcept.depends_on.join(', ')}</p>}
           </article>
@@ -575,19 +587,6 @@ function App() {
           )}
 
           <section className="teaching-tools" aria-label="Teaching tools">
-            <div className="narration-tools">
-              <span className="tool-label">Listen</span>
-              <div className="voice-picker" aria-label="Narration voice">
-                <button type="button" className={voice === 'feminine' ? 'selected' : ''} onClick={() => setVoice('feminine')} aria-pressed={voice === 'feminine'} disabled={playbackState === 'playing' || playbackState === 'loading'}>Feminine voice</button>
-                <button type="button" className={voice === 'masculine' ? 'selected' : ''} onClick={() => setVoice('masculine')} aria-pressed={voice === 'masculine'} disabled={playbackState === 'playing' || playbackState === 'loading'}>Masculine voice</button>
-              </div>
-              {playbackState === 'playing' ? (
-                <button type="button" className="secondary-button" onClick={handlePause}>Pause</button>
-              ) : (
-                <button type="button" className="secondary-button" onClick={handlePlay} disabled={playbackState === 'loading'}>{playbackState === 'loading' ? 'Preparing narration…' : 'Play'}</button>
-              )}
-            </div>
-
             <form className="clarify-form" onSubmit={submitQuestion}>
               <label htmlFor="clarify-question">Questions?</label>
               <div>
