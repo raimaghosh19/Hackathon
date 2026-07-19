@@ -19,11 +19,14 @@ function App() {
   const [detailRetry, setDetailRetry] = useState(0)
   const [currentConceptIndex, setCurrentConceptIndex] = useState(0)
   const [sessionView, setSessionView] = useState('lesson')
-  const [advanceWarning, setAdvanceWarning] = useState(null)
   const [dependencyGate, setDependencyGate] = useState(null)
   const [checkInOpen, setCheckInOpen] = useState(false)
   const [checkAnswers, setCheckAnswers] = useState({})
   const [checkFeedback, setCheckFeedback] = useState({})
+  const [checkScores, setCheckScores] = useState({})
+  const [helpRequestOpen, setHelpRequestOpen] = useState(false)
+  const [helpRequest, setHelpRequest] = useState('')
+  const [isReteaching, setIsReteaching] = useState(false)
   const [voice, setVoice] = useState('feminine')
   const [playbackState, setPlaybackState] = useState('idle')
   const [question, setQuestion] = useState('')
@@ -106,6 +109,9 @@ function App() {
     setCheckInOpen(false)
     setCheckAnswers({})
     setCheckFeedback({})
+    setCheckScores({})
+    setHelpRequestOpen(false)
+    setHelpRequest('')
 
     return stopNarration
   }, [currentConceptIndex])
@@ -142,7 +148,6 @@ function App() {
       setConceptDetails({})
       setUnderstanding({})
       setDependencyGate(null)
-      setAdvanceWarning(null)
       setCurrentConceptIndex(0)
       setSessionView('lesson')
       setQuizIndex(0)
@@ -221,6 +226,7 @@ function App() {
     try {
       const result = await assessUnderstanding(displayedExplanation, checkQuestion, answer)
       setCheckFeedback((feedback) => ({ ...feedback, [checkQuestion]: result.feedback }))
+      setCheckScores((scores) => ({ ...scores, [checkQuestion]: result.score }))
       setUnderstanding((statuses) => ({ ...statuses, [currentConcept.id]: result.understanding }))
     } catch (requestError) {
       showError(requestError.message || 'Unable to check that answer.', () => handleCheckAnswer(checkQuestion))
@@ -235,11 +241,6 @@ function App() {
     if (!trimmedQuestion) return
     setQuestion('')
     handleClarify(trimmedQuestion)
-  }
-
-  function continueWithoutCheck() {
-    if (!currentConcept) return
-    setUnderstanding((statuses) => ({ ...statuses, [currentConcept.id]: 'confirmed' }))
   }
 
   function tryNavigate(targetIndex) {
@@ -259,11 +260,13 @@ function App() {
   }
 
   function requestNext() {
-    if (!currentConcept) return
+    if (!currentConcept || isDetailLoading || !currentDetail) return
     const targetIndex = currentConceptIndex + 1
+    const checkQuestions = currentDetail.check_questions || []
+    const allQuestionsAnswered = checkQuestions.every((checkQuestion) => checkFeedback[checkQuestion])
 
-    if (!currentStatus) {
-      setAdvanceWarning({ targetIndex })
+    if (checkQuestions.length > 0 && (!checkInOpen || !allQuestionsAnswered)) {
+      setCheckInOpen(true)
       return
     }
 
@@ -275,23 +278,33 @@ function App() {
     tryNavigate(targetIndex)
   }
 
-  function continuePastWarning() {
-    if (!advanceWarning || !currentConcept) return
-    const { targetIndex } = advanceWarning
-    setUnderstanding((statuses) => ({ ...statuses, [currentConcept.id]: 'skipped' }))
-    setAdvanceWarning(null)
+  async function handleReteach() {
+    if (!currentConcept || !helpRequest.trim() || !displayedExplanation) return
 
-    if (targetIndex === concepts.length) {
-      setSessionView(finalQuizItems.length ? 'quiz' : 'summary')
-      return
+    setIsReteaching(true)
+    clearError()
+    try {
+      const reteach = await requestTeachingAssist('reteach', displayedExplanation, helpRequest.trim())
+      setConceptDetails((details) => ({
+        ...details,
+        [currentConcept.id]: { ...details[currentConcept.id], explanation: reteach },
+      }))
+      setUnderstanding((statuses) => {
+        const next = { ...statuses }
+        delete next[currentConcept.id]
+        return next
+      })
+      setCheckAnswers({})
+      setCheckFeedback({})
+      setCheckScores({})
+      setHelpRequestOpen(false)
+      setHelpRequest('')
+      await playNarration(reteach)
+    } catch (requestError) {
+      showError(requestError.message || 'Unable to re-teach this concept.', handleReteach)
+    } finally {
+      setIsReteaching(false)
     }
-
-    tryNavigate(targetIndex)
-  }
-
-  function reviewBeforeNext() {
-    setAdvanceWarning(null)
-    setCheckInOpen(true)
   }
 
   function revisitDependency() {
@@ -454,26 +467,6 @@ function App() {
     )
   }
 
-  if (advanceWarning) {
-    return (
-      <main className="page-shell teaching-shell">
-        <section className="teaching-card dependency-card" aria-labelledby="advance-warning-title">
-          <article className="dependency-content">
-            <p className="eyebrow">Quick heads-up</p>
-            <h1 id="advance-warning-title">Before you move on…</h1>
-            <p>
-              Moving ahead without a quick check can make the next ideas feel tougher. Want to go over this one first, or keep going?
-            </p>
-            <div className="dependency-actions">
-              <button type="button" onClick={reviewBeforeNext}>Go over it again</button>
-              <button type="button" className="secondary-button" onClick={continuePastWarning}>Keep going</button>
-            </div>
-          </article>
-        </section>
-      </main>
-    )
-  }
-
   if (dependencyGate) {
     const { dependency, targetIndex } = dependencyGate
     return (
@@ -520,19 +513,11 @@ function App() {
             {currentConcept.depends_on?.length > 0 && <p className="dependencies">Builds on: {currentConcept.depends_on.join(', ')}</p>}
           </article>
 
-          {readyForCheckIn && !currentStatus && !checkInOpen && (
-            <section className="check-in" aria-labelledby="check-in-title">
-              <h2 id="check-in-title">Want to go over that again to make sure it stuck, or good to keep going?</h2>
-              <div>
-                <button type="button" className="secondary-button" onClick={continueWithoutCheck}>I&apos;ve got it — continue</button>
-                <button type="button" onClick={() => setCheckInOpen(true)}>Yeah, go over it again</button>
-              </div>
-            </section>
-          )}
-
           {readyForCheckIn && checkInOpen && (
             <section className="check-questions" aria-labelledby="check-questions-title">
-              <h2 id="check-questions-title">Cool — give these a shot</h2>
+              <p className="quick-check-label">Quick check-in</p>
+              <h2 id="check-questions-title">Answer these questions to see how well it clicked</h2>
+              <p className="check-in-copy">Answer each question in your own words. You’ll get a score and quick feedback before moving on.</p>
               {currentDetail.check_questions.map((checkQuestion) => (
                 <div className="check-question" key={checkQuestion}>
                   <p>{checkQuestion}</p>
@@ -552,9 +537,34 @@ function App() {
                       {checkingQuestion === checkQuestion ? 'Checking…' : 'Check it'}
                     </button>
                   </div>
-                  {checkFeedback[checkQuestion] && <p className="check-feedback">{checkFeedback[checkQuestion]}</p>}
+                  {checkFeedback[checkQuestion] && (
+                    <div className="check-feedback">
+                      <strong>Score: {checkScores[checkQuestion]}%</strong>
+                      <p>{checkFeedback[checkQuestion]}</p>
+                    </div>
+                  )}
                 </div>
               ))}
+              {!helpRequestOpen ? (
+                <button type="button" className="help-button" onClick={() => setHelpRequestOpen(true)}>
+                  I need more help getting it
+                </button>
+              ) : (
+                <div className="reteach-form">
+                  <label htmlFor="reteach-request">What part didn&apos;t click for you?</label>
+                  <textarea
+                    id="reteach-request"
+                    value={helpRequest}
+                    onChange={(event) => setHelpRequest(event.target.value)}
+                    placeholder="Tell me what feels confusing"
+                    rows="3"
+                    disabled={isReteaching}
+                  />
+                  <button type="button" onClick={handleReteach} disabled={!helpRequest.trim() || isReteaching}>
+                    {isReteaching ? 'Re-teaching…' : 'Help me get it'}
+                  </button>
+                </div>
+              )}
             </section>
           )}
 
@@ -599,6 +609,7 @@ function App() {
                 type="button"
                 className="secondary-button"
                 onClick={requestNext}
+                disabled={isDetailLoading || !currentDetail}
               >
                 {currentConceptIndex === concepts.length - 1 ? 'Finish & review' : 'Next'}
               </button>
@@ -613,13 +624,13 @@ function App() {
   return (
     <main className="page-shell">
       <section className="card" aria-labelledby="page-title">
-        <p className="eyebrow">Study helper</p>
+        <p className="eyebrow">FocoTA - Study Helper</p>
         <h1 id="page-title">Turn course notes into concepts</h1>
         <p className="intro">Paste your notes below and we’ll identify the ideas worth studying.</p>
         <label htmlFor="course-notes">Course notes</label>
         <textarea id="course-notes" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Paste your course notes here…" rows="12" />
         <button type="button" onClick={handleBreakIntoConcepts} disabled={!notes.trim() || isLoading}>{isLoading ? 'Extracting concepts…' : 'Break into Concepts'}</button>
-        {isLoading && <p className="request-loading" role="status">Hang in there! Uploading your documents…</p>}
+        {isLoading && <p className="request-loading" role="status"><span className="loading-spinner" aria-hidden="true" />Hang in there! Uploading your documents…</p>}
         {error && <div className="error" role="alert"><span>{error}</span>{retryAction && <button type="button" className="retry-button" onClick={retryAction}>Try again</button>}</div>}
       </section>
     </main>

@@ -6,7 +6,11 @@ function buildPrompt(action, explanation, question, answer) {
   }
 
   if (action === 'check_understanding') {
-    return `A student is learning this concept: ${explanation}\n\nCheck question: ${question}\n\nStudent's answer: ${answer}\n\nGive brief, casual feedback on whether their answer shows real understanding. Do not require exact wording. Point out one useful correction if needed. Keep it under 3 sentences.`
+    return `A student is learning this concept: ${explanation}\n\nCheck question: ${question}\n\nStudent's answer: ${answer}\n\nGive brief, casual feedback on whether their answer shows real understanding. Do not require exact wording. Point out one useful correction if needed. Give a fair 0-100 comprehension score. Keep the feedback under 3 sentences.`
+  }
+
+  if (action === 'reteach') {
+    return `A student is learning this concept: ${explanation}\n\nThey said this part did not click: ${question}\n\nReteach the concept specifically around that confusion. Use plain language, a concrete real-world analogy, and no jargon. Keep it under 4 sentences.`
   }
 
   return `The student said they are completely lost and this makes no sense at all. Completely re-explain this concept from scratch using a totally different, very concrete real-world analogy. Avoid all jargon and mathematical notation. Keep it under 4 sentences. End by asking if this version makes more sense.\n\nConcept: ${explanation}`
@@ -18,8 +22,9 @@ const understandingSchema = {
   properties: {
     feedback: { type: 'string' },
     understanding: { type: 'string', enum: ['confirmed', 'shaky'] },
+    score: { type: 'integer', minimum: 0, maximum: 100 },
   },
-  required: ['feedback', 'understanding'],
+  required: ['feedback', 'understanding', 'score'],
 }
 
 export default async function handler(request, response) {
@@ -29,10 +34,10 @@ export default async function handler(request, response) {
   }
 
   const { action, explanation, question, answer } = request.body || {}
-  if (!['clarify', 'panic', 'check_understanding'].includes(action) || !explanation?.trim()) {
+  if (!['clarify', 'panic', 'reteach', 'check_understanding'].includes(action) || !explanation?.trim()) {
     return response.status(400).json({ error: 'A teaching action and concept explanation are required.' })
   }
-  if (action === 'clarify' && !question?.trim()) {
+  if (['clarify', 'reteach'].includes(action) && !question?.trim()) {
     return response.status(400).json({ error: 'A clarification question is required.' })
   }
   if (action === 'check_understanding' && (!question?.trim() || !answer?.trim())) {
@@ -90,7 +95,7 @@ export default async function handler(request, response) {
 
     if (action === 'check_understanding') {
       const feedback = JSON.parse(outputText.text)
-      if (!feedback.feedback || !['confirmed', 'shaky'].includes(feedback.understanding)) {
+      if (!feedback.feedback || !['confirmed', 'shaky'].includes(feedback.understanding) || !Number.isInteger(feedback.score)) {
         throw new Error('OpenAI returned incomplete understanding feedback.')
       }
       return response.status(200).json(feedback)
