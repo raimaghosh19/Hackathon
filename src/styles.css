@@ -35,6 +35,7 @@ button, textarea { font: inherit; }
 .card > button:not(.retry-button):hover:not(:disabled) { background: #1a5f7a; }
 
 .eyebrow { margin: 0 0 8px; color: #6255d8; font-size: .85rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.brand-label { text-transform: none; }
 h1 { margin: 0; font-size: clamp(2rem, 5vw, 2.8rem); letter-spacing: -.04em; }
 .intro { margin: 14px 0 30px; color: #5b667a; line-height: 1.55; }
 label { display: block; margin-bottom: 9px; font-size: .95rem; font-weight: 700; }

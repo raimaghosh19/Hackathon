@@ -624,7 +624,7 @@ function App() {
   return (
     <main className="page-shell">
       <section className="card" aria-labelledby="page-title">
-        <p className="eyebrow">FocoTA - Study Helper</p>
+        <p className="eyebrow brand-label">FocoTA - Study Helper</p>
         <h1 id="page-title">Turn course notes into concepts</h1>
         <p className="intro">Paste your notes below and we’ll identify the ideas worth studying.</p>
         <label htmlFor="course-notes">Course notes</label>
