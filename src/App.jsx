@@ -19,6 +19,7 @@ function App() {
   const [detailRetry, setDetailRetry] = useState(0)
   const [currentConceptIndex, setCurrentConceptIndex] = useState(0)
   const [sessionView, setSessionView] = useState('lesson')
+  const [advanceWarning, setAdvanceWarning] = useState(null)
   const [dependencyGate, setDependencyGate] = useState(null)
   const [checkInOpen, setCheckInOpen] = useState(false)
   const [checkAnswers, setCheckAnswers] = useState({})
@@ -141,6 +142,7 @@ function App() {
       setConceptDetails({})
       setUnderstanding({})
       setDependencyGate(null)
+      setAdvanceWarning(null)
       setCurrentConceptIndex(0)
       setSessionView('lesson')
       setQuizIndex(0)
@@ -237,7 +239,7 @@ function App() {
 
   function continueWithoutCheck() {
     if (!currentConcept) return
-    setUnderstanding((statuses) => ({ ...statuses, [currentConcept.id]: 'skipped' }))
+    setUnderstanding((statuses) => ({ ...statuses, [currentConcept.id]: 'confirmed' }))
   }
 
   function tryNavigate(targetIndex) {
@@ -254,6 +256,42 @@ function App() {
     }
 
     setCurrentConceptIndex(targetIndex)
+  }
+
+  function requestNext() {
+    if (!currentConcept) return
+    const targetIndex = currentConceptIndex + 1
+
+    if (!currentStatus) {
+      setAdvanceWarning({ targetIndex })
+      return
+    }
+
+    if (targetIndex === concepts.length) {
+      setSessionView(finalQuizItems.length ? 'quiz' : 'summary')
+      return
+    }
+
+    tryNavigate(targetIndex)
+  }
+
+  function continuePastWarning() {
+    if (!advanceWarning || !currentConcept) return
+    const { targetIndex } = advanceWarning
+    setUnderstanding((statuses) => ({ ...statuses, [currentConcept.id]: 'skipped' }))
+    setAdvanceWarning(null)
+
+    if (targetIndex === concepts.length) {
+      setSessionView(finalQuizItems.length ? 'quiz' : 'summary')
+      return
+    }
+
+    tryNavigate(targetIndex)
+  }
+
+  function reviewBeforeNext() {
+    setAdvanceWarning(null)
+    setCheckInOpen(true)
   }
 
   function revisitDependency() {
@@ -416,6 +454,26 @@ function App() {
     )
   }
 
+  if (advanceWarning) {
+    return (
+      <main className="page-shell teaching-shell">
+        <section className="teaching-card dependency-card" aria-labelledby="advance-warning-title">
+          <article className="dependency-content">
+            <p className="eyebrow">Quick heads-up</p>
+            <h1 id="advance-warning-title">Before you move on…</h1>
+            <p>
+              Moving ahead without a quick check can make the next ideas feel tougher. Want to go over this one first, or keep going?
+            </p>
+            <div className="dependency-actions">
+              <button type="button" onClick={reviewBeforeNext}>Go over it again</button>
+              <button type="button" className="secondary-button" onClick={continuePastWarning}>Keep going</button>
+            </div>
+          </article>
+        </section>
+      </main>
+    )
+  }
+
   if (dependencyGate) {
     const { dependency, targetIndex } = dependencyGate
     return (
@@ -425,7 +483,7 @@ function App() {
             <p className="eyebrow">Quick heads-up</p>
             <h1 id="dependency-title">Before we jump ahead…</h1>
             <p>
-              Yo, this next idea builds on <strong>{dependency.title}</strong>. You {understanding[dependency.id] === 'skipped' ? 'skipped' : 'struggled with'} that one earlier.
+              This next idea builds on <strong>{dependency.title}</strong>. You {understanding[dependency.id] === 'skipped' ? 'skipped the check-in for' : 'had a tougher time with'} that one earlier.
               Want to revisit it first, or keep going?
             </p>
             <div className="dependency-actions">
@@ -466,7 +524,7 @@ function App() {
             <section className="check-in" aria-labelledby="check-in-title">
               <h2 id="check-in-title">Want to go over that again to make sure it stuck, or good to keep going?</h2>
               <div>
-                <button type="button" className="secondary-button" onClick={continueWithoutCheck}>Let&apos;s continue</button>
+                <button type="button" className="secondary-button" onClick={continueWithoutCheck}>I&apos;ve got it — continue</button>
                 <button type="button" onClick={() => setCheckInOpen(true)}>Yeah, go over it again</button>
               </div>
             </section>
@@ -540,8 +598,7 @@ function App() {
               <button
                 type="button"
                 className="secondary-button"
-                onClick={() => (currentConceptIndex === concepts.length - 1 ? setSessionView(finalQuizItems.length ? 'quiz' : 'summary') : tryNavigate(currentConceptIndex + 1))}
-                disabled={!currentStatus}
+                onClick={requestNext}
               >
                 {currentConceptIndex === concepts.length - 1 ? 'Finish & review' : 'Next'}
               </button>
