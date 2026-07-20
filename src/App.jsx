@@ -21,6 +21,7 @@ function App() {
   const [sessionView, setSessionView] = useState('lesson')
   const [dependencyGate, setDependencyGate] = useState(null)
   const [checkInOpen, setCheckInOpen] = useState(false)
+  const [checkWarning, setCheckWarning] = useState(false)
   const [checkAnswers, setCheckAnswers] = useState({})
   const [checkFeedback, setCheckFeedback] = useState({})
   const [checkScores, setCheckScores] = useState({})
@@ -107,6 +108,7 @@ function App() {
     setQuestion('')
     setClarification('')
     setCheckInOpen(false)
+    setCheckWarning(false)
     setCheckAnswers({})
     setCheckFeedback({})
     setCheckScores({})
@@ -243,13 +245,13 @@ function App() {
     handleClarify(trimmedQuestion)
   }
 
-  function tryNavigate(targetIndex) {
+  function tryNavigate(targetIndex, understandingState = understanding) {
     const target = concepts[targetIndex]
     if (!target) return
 
     const dependency = target.depends_on
       ?.map((title) => concepts.find((concept) => concept.title === title))
-      .find((concept) => concept && ['skipped', 'shaky'].includes(understanding[concept.id]))
+      .find((concept) => concept && ['skipped', 'shaky'].includes(understandingState[concept.id]))
 
     if (dependency) {
       setDependencyGate({ targetIndex, dependency })
@@ -259,23 +261,38 @@ function App() {
     setCurrentConceptIndex(targetIndex)
   }
 
-  function requestNext() {
+  function moveToNext(understandingState = understanding) {
     if (!currentConcept || isDetailLoading || !currentDetail) return
     const targetIndex = currentConceptIndex + 1
-    const checkQuestions = currentDetail.check_questions || []
-    const allQuestionsAnswered = checkQuestions.every((checkQuestion) => checkFeedback[checkQuestion])
-
-    if (checkQuestions.length > 0 && (!checkInOpen || !allQuestionsAnswered)) {
-      setCheckInOpen(true)
-      return
-    }
 
     if (targetIndex === concepts.length) {
       setSessionView(finalQuizItems.length ? 'quiz' : 'summary')
       return
     }
 
-    tryNavigate(targetIndex)
+    tryNavigate(targetIndex, understandingState)
+  }
+
+  function requestNext() {
+    if (!currentConcept || isDetailLoading || !currentDetail) return
+    const checkQuestions = currentDetail.check_questions || []
+    const allQuestionsAnswered = checkQuestions.every((checkQuestion) => checkFeedback[checkQuestion])
+
+    if (checkQuestions.length > 0 && !allQuestionsAnswered) {
+      setCheckInOpen(true)
+      setCheckWarning(true)
+      return
+    }
+
+    moveToNext()
+  }
+
+  function continueWithoutCheck() {
+    if (!currentConcept) return
+    const nextUnderstanding = { ...understanding, [currentConcept.id]: 'skipped' }
+    setUnderstanding(nextUnderstanding)
+    setCheckWarning(false)
+    moveToNext(nextUnderstanding)
   }
 
   async function handleReteach() {
@@ -297,6 +314,7 @@ function App() {
       setCheckAnswers({})
       setCheckFeedback({})
       setCheckScores({})
+      setCheckWarning(false)
       setHelpRequestOpen(false)
       setHelpRequest('')
       await playNarration(reteach)
@@ -496,6 +514,7 @@ function App() {
 
   if (currentConcept) {
     const readyForCheckIn = currentDetail?.check_questions?.length > 0 && !isDetailLoading && !isClarifying && !isSimplifying
+    const allQuestionsAnswered = currentDetail?.check_questions?.every((checkQuestion) => checkFeedback[checkQuestion])
 
     return (
       <main className="page-shell teaching-shell">
@@ -525,7 +544,7 @@ function App() {
             {currentConcept.depends_on?.length > 0 && <p className="dependencies">Builds on: {currentConcept.depends_on.join(', ')}</p>}
           </article>
 
-          {readyForCheckIn && checkInOpen && (
+          {readyForCheckIn && checkInOpen && !allQuestionsAnswered && (
             <section className="check-questions" aria-labelledby="check-questions-title">
               <p className="quick-check-label">Quick check-in</p>
               <h2 id="check-questions-title">Answer these questions to see how well it clicked</h2>
@@ -577,6 +596,22 @@ function App() {
                   </button>
                 </div>
               )}
+            </section>
+          )}
+
+          {readyForCheckIn && checkInOpen && allQuestionsAnswered && (
+            <section className="check-complete" role="status">
+              <strong>Good job!</strong> You&apos;re good to move on.
+            </section>
+          )}
+
+          {checkWarning && !allQuestionsAnswered && (
+            <section className="check-warning" role="alert">
+              <p>Quick heads-up: this next topic may build on this one. Want to finish the quick check first?</p>
+              <div>
+                <button type="button" className="secondary-button" onClick={() => setCheckWarning(false)}>Finish the quick check</button>
+                <button type="button" onClick={continueWithoutCheck}>Keep going anyway</button>
+              </div>
             </section>
           )}
 
