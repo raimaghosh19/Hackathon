@@ -36,6 +36,7 @@ function App() {
   const [quizAnswer, setQuizAnswer] = useState('')
   const [quizResults, setQuizResults] = useState([])
   const [isQuizChecking, setIsQuizChecking] = useState(false)
+  const [isPreparingFinalQuiz, setIsPreparingFinalQuiz] = useState(false)
   const audioRef = useRef(null)
   const audioUrlRef = useRef(null)
 
@@ -295,6 +296,38 @@ function App() {
     moveToNext(nextUnderstanding)
   }
 
+  async function skipToFinalQuiz() {
+    if (isPreparingFinalQuiz) return
+
+    setIsPreparingFinalQuiz(true)
+    clearError()
+    try {
+      const missingDetails = concepts.filter((concept) => !conceptDetails[concept.id])
+      const loadedDetails = await Promise.all(
+        missingDetails.map(async (concept) => ({
+          conceptId: concept.id,
+          detail: await getConceptDetails(notes, concept),
+        })),
+      )
+
+      setConceptDetails((details) => ({
+        ...details,
+        ...Object.fromEntries(loadedDetails.map(({ conceptId, detail }) => [conceptId, detail])),
+      }))
+      setUnderstanding((statuses) => Object.fromEntries(
+        concepts.map((concept) => [concept.id, statuses[concept.id] || 'skipped']),
+      ))
+      setQuizIndex(0)
+      setQuizAnswer('')
+      setQuizResults([])
+      setSessionView('quiz')
+    } catch (requestError) {
+      showError(requestError.message || 'Unable to prepare the final quiz.', skipToFinalQuiz)
+    } finally {
+      setIsPreparingFinalQuiz(false)
+    }
+  }
+
   async function handleReteach() {
     if (!currentConcept || !helpRequest.trim() || !displayedExplanation) return
 
@@ -533,6 +566,9 @@ function App() {
               ) : (
                 <button type="button" className="secondary-button" onClick={handlePlay} disabled={playbackState === 'loading'}>{playbackState === 'loading' ? 'Preparing narration…' : 'Play'}</button>
               )}
+              <button type="button" className="skip-quiz-button" onClick={skipToFinalQuiz} disabled={isPreparingFinalQuiz}>
+                {isPreparingFinalQuiz ? 'Preparing final quiz…' : 'Skip to final quiz'}
+              </button>
             </div>
           </header>
 

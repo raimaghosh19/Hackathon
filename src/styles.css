@@ -141,6 +141,8 @@ li span { margin-top: 4px; color: #5b667a; font-size: .93rem; line-height: 1.4; 
 .narration-panel { display: flex; flex-direction: row; align-items: center; gap: 12px; margin-top: 18px; padding: 10px 12px; background: #0b2447; border-left: 5px solid #f2c14e; border-radius: 0 10px 10px 0; }
 .narration-panel .tool-label { color: #bfd4e9; }
 .narration-panel .tool-label, .narration-panel > .secondary-button { margin: 0; }
+.skip-quiz-button { margin: 0 0 0 auto; padding: 9px 12px; color: #f2c14e; background: transparent; border: 1px solid #d2a84d; border-radius: 7px; font-size: .86rem; }
+.skip-quiz-button:hover:not(:disabled) { color: #0b2447; background: #f2c14e; }
 .clarify-form { width: 100%; margin: 0; }
 .clarify-form > div { width: 100%; display: flex; gap: 8px; }
 .clarify-form input { flex: 1; min-width: 0; padding: 12px 13px; color: #0b2447; background: #fff; border: 2px solid #bfd4e9; border-radius: 7px; }
