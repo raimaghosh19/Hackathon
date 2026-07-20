@@ -493,7 +493,7 @@ function App() {
               {solidConcepts.length > 0 ? (
                 <ul>{solidConcepts.map(({ concept }) => <li key={concept.id}>{concept.title}</li>)}</ul>
               ) : (
-                <p>Keep practicing — the final check-in is just a snapshot, not the whole story.</p>
+                <p>Keep practicing!</p>
               )}
             </section>
 
