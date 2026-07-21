@@ -182,6 +182,13 @@ function App() {
     setPlaybackState('paused')
   }
 
+  function handleVoiceChange(nextVoice) {
+    if (nextVoice === voice) return
+    stopNarration()
+    setPlaybackState('idle')
+    setVoice(nextVoice)
+  }
+
   async function handleClarify(text) {
     if (!displayedExplanation) return
     setIsClarifying(true)
@@ -479,6 +486,8 @@ function App() {
     })
     const solidConcepts = summary.filter(({ hasGap }) => !hasGap)
     const revisitConcepts = summary.filter(({ hasGap }) => hasGap)
+    const solidTitles = solidConcepts.map(({ concept }) => concept.title).join(', ')
+    const revisitTitles = revisitConcepts.map(({ concept }) => concept.title).join(', ')
 
     return (
       <main className="page-shell teaching-shell">
@@ -487,6 +496,11 @@ function App() {
             <p className="eyebrow">Session wrap-up</p>
             <h1 id="summary-title">Nice work showing up for it.</h1>
             <p>You worked through {concepts.length} concepts and finished the final check-in.</p>
+            <p className="summary-reflection">
+              {solidTitles ? `Your strengths showed most clearly in ${solidTitles}.` : 'Your strength was showing up and working through the material.'}{' '}
+              {revisitTitles ? `${revisitTitles} are the areas most worth revisiting.` : 'No concepts were flagged as needing extra review.'}{' '}
+              {revisitTitles ? 'A short review of those areas will make your next study session even stronger.' : 'Keep building on that progress in your next study session.'}
+            </p>
 
             <section className="summary-section" aria-labelledby="solid-title">
               <h2 id="solid-title">Looking solid</h2>
@@ -558,8 +572,8 @@ function App() {
             <div className="narration-tools narration-panel">
               <span className="tool-label">Listen</span>
               <div className="voice-picker" aria-label="Narration voice">
-                <button type="button" className={voice === 'feminine' ? 'selected' : ''} onClick={() => setVoice('feminine')} aria-pressed={voice === 'feminine'} disabled={playbackState === 'playing' || playbackState === 'loading'}>Feminine voice</button>
-                <button type="button" className={voice === 'masculine' ? 'selected' : ''} onClick={() => setVoice('masculine')} aria-pressed={voice === 'masculine'} disabled={playbackState === 'playing' || playbackState === 'loading'}>Masculine voice</button>
+                <button type="button" className={voice === 'feminine' ? 'selected' : ''} onClick={() => handleVoiceChange('feminine')} aria-pressed={voice === 'feminine'}>Feminine voice</button>
+                <button type="button" className={voice === 'masculine' ? 'selected' : ''} onClick={() => handleVoiceChange('masculine')} aria-pressed={voice === 'masculine'}>Masculine voice</button>
               </div>
               {playbackState === 'playing' ? (
                 <button type="button" className="secondary-button" onClick={handlePause}>Pause</button>
