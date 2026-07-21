@@ -4,6 +4,17 @@ import { getConceptDetails } from './conceptDetails.js'
 import { createNarration } from './narration.js'
 import { assessUnderstanding, requestTeachingAssist } from './teachingAssist.js'
 
+function uniqueQuestions(questions = []) {
+  const seen = new Set()
+
+  return questions.filter((question) => {
+    const key = question.trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ')
+    if (!key || seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 function App() {
   const [notes, setNotes] = useState('')
   const [concepts, setConcepts] = useState([])
@@ -45,14 +56,23 @@ function App() {
   const currentStatus = currentConcept ? understanding[currentConcept.id] : null
   const displayedExplanation = currentDetail?.explanation || currentConcept?.summary || currentConcept?.description || ''
   const progress = concepts.length ? Math.round(((currentConceptIndex + 1) / concepts.length) * 100) : 0
-  const finalQuizItems = concepts.flatMap((concept) => (
-    (conceptDetails[concept.id]?.check_questions || []).slice(0, 2).map((checkQuestion) => ({
-      conceptId: concept.id,
-      conceptTitle: concept.title,
-      explanation: conceptDetails[concept.id]?.explanation || concept.summary || concept.description,
-      checkQuestion,
-    }))
-  ))
+  const finalQuizItems = (() => {
+    const seenQuestions = new Set()
+
+    return concepts.flatMap((concept) => (
+      uniqueQuestions(conceptDetails[concept.id]?.check_questions).slice(0, 2).map((checkQuestion) => ({
+        conceptId: concept.id,
+        conceptTitle: concept.title,
+        explanation: conceptDetails[concept.id]?.explanation || concept.summary || concept.description,
+        checkQuestion,
+      }))
+    )).filter((item) => {
+      const key = item.checkQuestion.trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ')
+      if (seenQuestions.has(key)) return false
+      seenQuestions.add(key)
+      return true
+    })
+  })()
 
   function showError(message, retry) {
     setError(message)
@@ -283,7 +303,7 @@ function App() {
 
   function requestNext() {
     if (!currentConcept || isDetailLoading || !currentDetail) return
-    const checkQuestions = currentDetail.check_questions || []
+    const checkQuestions = uniqueQuestions(currentDetail.check_questions)
     const allQuestionsAnswered = checkQuestions.every((checkQuestion) => checkFeedback[checkQuestion])
 
     if (checkQuestions.length > 0 && !allQuestionsAnswered) {
@@ -560,8 +580,9 @@ function App() {
   }
 
   if (currentConcept) {
-    const readyForCheckIn = currentDetail?.check_questions?.length > 0 && !isDetailLoading && !isClarifying && !isSimplifying
-    const allQuestionsAnswered = currentDetail?.check_questions?.every((checkQuestion) => checkFeedback[checkQuestion])
+    const currentCheckQuestions = uniqueQuestions(currentDetail?.check_questions)
+    const readyForCheckIn = currentCheckQuestions.length > 0 && !isDetailLoading && !isClarifying && !isSimplifying
+    const allQuestionsAnswered = currentCheckQuestions.every((checkQuestion) => checkFeedback[checkQuestion])
 
     return (
       <main className="page-shell teaching-shell">
@@ -599,7 +620,7 @@ function App() {
               <p className="quick-check-label">Quick check-in</p>
               <h2 id="check-questions-title">Answer these questions to see how well it clicked</h2>
               <p className="check-in-copy">Answer each question in your own words. You’ll get a score and quick feedback before moving on.</p>
-              {currentDetail.check_questions.map((checkQuestion) => (
+              {currentCheckQuestions.map((checkQuestion) => (
                 <div className="check-question" key={checkQuestion}>
                   <p>{checkQuestion}</p>
                   <div>
